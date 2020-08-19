@@ -1,11 +1,17 @@
 package com.gitee.carloshuang.processor;
 
 import com.gitee.carloshuang.annotation.*;
+import com.gitee.carloshuang.storage.ConnectionHolder;
+import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
+import com.squareup.javapoet.TypeSpec;
 import org.apache.commons.collections4.CollectionUtils;
 import org.reflections.Reflections;
 
+import javax.lang.model.element.Modifier;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.sql.*;
 import java.util.Set;
 
 /**
@@ -51,6 +57,7 @@ public class MapperProcessor {
         if (!aClass.isInterface()) return;
         // TODO 开始解析接口，由接口生成实现类代码
         Method[] methods = aClass.getDeclaredMethods();
+        TypeSpec.Builder typeBuilder = createTypeBuilder(aClass);
         for (Method method : methods) {
             MethodSpec methodSpec;
             if (method.isAnnotationPresent(Query.class)) {
@@ -64,7 +71,23 @@ public class MapperProcessor {
             } else {
                 methodSpec = parserOtherMethod(method);
             }
+            typeBuilder.addMethod(methodSpec);
         }
+        TypeSpec implClass = typeBuilder.build();
+    }
+
+    /**
+     * 创建类生成对象
+     * @param aClass
+     * @return
+     */
+    private TypeSpec.Builder createTypeBuilder(Class<?> aClass) {
+        // 实现类实现的接口
+        ClassName superinterface = ClassName.get(aClass);
+        String name = aClass.getSimpleName() + "$1Impl$";
+        return TypeSpec.classBuilder(name)
+                .addModifiers(Modifier.PUBLIC)
+                .addSuperinterface(superinterface);
     }
 
     /**
@@ -75,7 +98,26 @@ public class MapperProcessor {
     private MethodSpec parserQueryMethod(Method method) {
         Query anno = method.getDeclaredAnnotation(Query.class);
         String sql = anno.value();
-        return null;
+        Parameter[] params = method.getParameters();
+        MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder(method.getName())
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(method.getReturnType());
+        for (Parameter param : params) {
+            methodBuilder.addParameter(param.getType(), param.getName());
+        }
+        // TODO 完善查询代码逻辑
+        // 主要代码逻辑
+        methodBuilder.addCode("$T connection = null;\n" +
+                        "$T statement = null;\n" +
+                        "try {\n",
+                            Connection.class, PreparedStatement.class);
+        methodBuilder.addStatement("connection = $T.getInstance().getConnection()", ConnectionHolder.class);
+        methodBuilder.addStatement("statement = connection.prepareStatement($S)", sql);
+        methodBuilder.addStatement("$T resultSet = statement.executeQuery()", ResultSet.class);
+        methodBuilder.addStatement("$T resultSetMetaData = resultSet.getMetaData()", ResultSetMetaData.class);
+        methodBuilder.addStatement("int count = resultSetMetaData.getColumnCount()");
+        return methodBuilder.build();
     }
 
     /**
