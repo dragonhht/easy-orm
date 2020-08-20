@@ -19,10 +19,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.sql.*;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -152,6 +149,13 @@ public class BaseTest {
             }).start();
         }
         TimeUnit.MINUTES.sleep(1);
+    }
+
+    @Test
+    public void te() {
+        String s = "er.efr.rtrt";
+        String[] ss = s.split("\\.");
+        System.out.println(Arrays.toString(ss));
     }
 
 }

@@ -1,17 +1,26 @@
 package com.gitee.carloshuang.processor;
 
 import com.gitee.carloshuang.annotation.*;
+import com.gitee.carloshuang.model.ResultFieldMessage;
 import com.gitee.carloshuang.storage.ConnectionHolder;
+import com.gitee.carloshuang.storage.QueryResultHolder;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeSpec;
+import lombok.SneakyThrows;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.reflections.Reflections;
 
 import javax.lang.model.element.Modifier;
+import java.beans.IntrospectionException;
+import java.beans.PropertyDescriptor;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.sql.*;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -58,10 +67,11 @@ public class MapperProcessor {
         // TODO 开始解析接口，由接口生成实现类代码
         Method[] methods = aClass.getDeclaredMethods();
         TypeSpec.Builder typeBuilder = createTypeBuilder(aClass);
+        String namespace = aClass.getName();
         for (Method method : methods) {
             MethodSpec methodSpec;
             if (method.isAnnotationPresent(Query.class)) {
-                methodSpec = parserQueryMethod(method);
+                methodSpec = parserQueryMethod(namespace, method);
             } else if (method.isAnnotationPresent(Insert.class)) {
                 methodSpec = parserInsertMethod(method);
             } else if (method.isAnnotationPresent(Update.class)) {
@@ -92,10 +102,14 @@ public class MapperProcessor {
 
     /**
      * 解析 @Query 注解标记的方法
+     * @param namespace 命名空间
      * @param method
      * @return
      */
-    private MethodSpec parserQueryMethod(Method method) {
+    private MethodSpec parserQueryMethod(String namespace, Method method) {
+        // 解析查询结果字段映射
+        parserResultMap(namespace, method);
+        // 解析 Query
         Query anno = method.getDeclaredAnnotation(Query.class);
         String sql = anno.value();
         Parameter[] params = method.getParameters();
@@ -118,6 +132,27 @@ public class MapperProcessor {
         methodBuilder.addStatement("$T resultSetMetaData = resultSet.getMetaData()", ResultSetMetaData.class);
         methodBuilder.addStatement("int count = resultSetMetaData.getColumnCount()");
         return methodBuilder.build();
+    }
+
+    /**
+     * 解析 @Results 注解
+     * @param namespace 命名空间
+     * @param method
+     */
+    private void parserResultMap(String namespace, Method method) {
+        Map<String, String> map = new HashMap<>();
+        Results annotation = method.getDeclaredAnnotation(Results.class);
+        if (annotation == null) return;
+        String id = annotation.id();
+        Result[] results = annotation.value();
+        for (Result result : results) {
+            map.put(result.column(), result.property());
+        }
+        Class<?> returnType = method.getReturnType();
+        Map<String, ResultFieldMessage> resultMap = resultMap(returnType, map);
+        // 保存
+        if (StringUtils.isEmpty(id)) id = method.getName();
+        QueryResultHolder.getInstance().put(namespace + "." + id, resultMap);
     }
 
     /**
@@ -154,6 +189,90 @@ public class MapperProcessor {
      */
     private MethodSpec parserOtherMethod(Method method) {
         return null;
+    }
+
+
+    /**
+     * 组装查询结果字段映射关系
+     * @param returnType 返回类型
+     * @param resultMapSettings 用户自定义的映射关系
+     * @return
+     */
+    @SneakyThrows
+    private Map<String, ResultFieldMessage> resultMap(Class<?> returnType, Map<String, String> resultMapSettings) {
+        Map<String, ResultFieldMessage> resultMap = handlerResultMapSetting(returnType, resultMapSettings);
+        // 实体其余字段按属性名对应
+        Field[] fields = returnType.getDeclaredFields();
+        for (Field field : fields) {
+            PropertyDescriptor descriptor = new PropertyDescriptor(field.getName(), returnType);
+            Method writeMethod = descriptor.getWriteMethod();
+            if (!resultMap.containsKey(field.getName())) {
+                ResultFieldMessage message = new ResultFieldMessage(writeMethod.getName());
+                resultMap.put(field.getName(), message);
+            }
+        }
+        return resultMap;
+    }
+
+    /**
+     * 处理用户自定义的映射关系
+     * @param returnType 接收实体类型
+     * @param resultMapSettings 自定义字段映射
+     */
+    private Map<String, ResultFieldMessage> handlerResultMapSetting(Class<?> returnType,
+                                                                    Map<String, String> resultMapSettings) {
+        Map<String, ResultFieldMessage> map = new HashMap<>();
+        for (Map.Entry<String, String> entry : resultMapSettings.entrySet()) {
+            String value = entry.getValue();
+            String[] fields = value.split("\\.");
+            // 一级时
+            if (fields.length < 2) {
+                try {
+                    PropertyDescriptor descriptor = new PropertyDescriptor(value, returnType);
+                    Method writeMethod = descriptor.getWriteMethod();
+                    ResultFieldMessage message = new ResultFieldMessage(writeMethod.getName());
+                    map.put(entry.getKey(), message);
+                    continue;
+                } catch (IntrospectionException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            // 存放对应的方法
+            String[] methods = new String[fields.length];
+            Class<?> modelType = returnType;
+            int last = fields.length - 1;
+            // 读方法与写方法的映射
+            Map<String, String> getSetMap = new HashMap<>();
+            Map<String, Class<?>> readTypeMap = new HashMap<>();
+            for (int i = 0; i < fields.length; i++) {
+                try {
+                    if (i != last) {
+                        // 不是最后一个属性，则获取 get 方法
+                        PropertyDescriptor descriptor = new PropertyDescriptor(fields[i], modelType);
+                        Method readMethod = descriptor.getReadMethod();
+                        modelType = readMethod.getReturnType();
+                        methods[i] = readMethod.getName();
+                        // 写方法
+                        Method writeMethod = descriptor.getWriteMethod();
+                        getSetMap.put(methods[i], writeMethod.getName());
+                        readTypeMap.put(methods[i], writeMethod.getReturnType());
+                        continue;
+                    }
+                    // 最后一个属性获取 set 方法
+                    PropertyDescriptor descriptor = new PropertyDescriptor(fields[i], modelType);
+                    Method writeMethod = descriptor.getWriteMethod();
+                    methods[i] = writeMethod.getName();
+                } catch (IntrospectionException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            value = StringUtils.join(methods, ".");
+            ResultFieldMessage message = new ResultFieldMessage(value);
+            message.setReadWriteMap(getSetMap);
+            message.setReadTypeMap(readTypeMap);
+            map.put(entry.getKey(), message);
+        }
+        return map;
     }
 
 }
