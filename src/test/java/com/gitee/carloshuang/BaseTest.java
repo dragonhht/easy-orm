@@ -3,18 +3,28 @@ package com.gitee.carloshuang;
 import com.esotericsoftware.reflectasm.FieldAccess;
 import com.esotericsoftware.reflectasm.MethodAccess;
 import com.gitee.carloshuang.annotation.Mapper;
+import com.gitee.carloshuang.constant.ParserConstant;
 import com.gitee.carloshuang.constant.PlatformType;
+import com.gitee.carloshuang.mapper.TestMapper;
 import com.gitee.carloshuang.model.JdbcConnectionModel;
+import com.gitee.carloshuang.model.ResultFieldMessage;
 import com.gitee.carloshuang.model.User;
+import com.gitee.carloshuang.processor.MapperProcessor;
 import com.gitee.carloshuang.storage.ConnectionHolder;
+import com.gitee.carloshuang.storage.MapperInstanceStorage;
+import com.gitee.carloshuang.storage.QueryResultHolder;
+import com.gitee.carloshuang.template.MapperTemplate;
 import com.gitee.carloshuang.utils.DataSourceUtils;
 import org.junit.Test;
 import org.reflections.Reflections;
 
 import javax.annotation.processing.RoundEnvironment;
 import javax.sql.DataSource;
+import javax.tools.JavaCompiler;
+import javax.tools.ToolProvider;
 import java.beans.IntrospectionException;
 import java.beans.PropertyDescriptor;
+import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
@@ -28,7 +38,7 @@ import java.util.concurrent.TimeUnit;
  * @author: Carlos Huang
  * @Date: 2020-8-17
  */
-public class BaseTest {
+public class BaseTest implements MapperTemplate {
 
     @Test
     public void testGetAnno() {
@@ -93,25 +103,26 @@ public class BaseTest {
         String sql = "select * from user";
         Connection connection = null;
         PreparedStatement statement = null;
+        Object result = null;
         try {
             connection = ConnectionHolder.getInstance().getConnection();
             statement = connection.prepareStatement(sql);
             ResultSet resultSet = statement.executeQuery();
-            fillData(User.class, resultSet);
-        } catch (SQLException e) {
+            Map<String, ResultFieldMessage> resultFieldMessageMap = QueryResultHolder.getInstance().getResultMap("");
+            result = fillData(User.class, resultFieldMessageMap, resultSet);
+        }catch (Exception e) {
             throw new RuntimeException(e);
-        } catch (IllegalAccessException | InstantiationException | IntrospectionException e) {
-            e.printStackTrace();
         } finally {
             if (statement != null) {
                 try {
                     statement.close();
                 } catch (SQLException throwables) {
-                    throwables.printStackTrace();
+                    throw new RuntimeException(throwables);
                 }
             }
             ConnectionHolder.getInstance().closeConnection();
         }
+        User.class.cast(result);
     }
 
     private void fillData(Class<?> returnType, ResultSet resultSet) throws SQLException, IllegalAccessException, InstantiationException, IntrospectionException {
@@ -153,9 +164,9 @@ public class BaseTest {
 
     @Test
     public void te() {
-        String s = "er.efr.rtrt";
-        String[] ss = s.split("\\.");
-        System.out.println(Arrays.toString(ss));
+        MapperProcessor.init();
+        TestMapper mapper = MapperInstanceStorage.getInstance().get(TestMapper.class);
+        System.out.println(mapper);
     }
 
 }

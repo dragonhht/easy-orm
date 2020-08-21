@@ -9,12 +9,16 @@ import java.util.Map;
  * @author: Carlos Huang
  * @Date: 2020-8-17
  */
-public final class MapperStorage {
-    private static final MapperStorage STORAGE = new MapperStorage();
+public final class MapperInstanceStorage {
+    private static final MapperInstanceStorage STORAGE = new MapperInstanceStorage();
     /** 保存Mapper接口与实现类实例的关系. */
     private static final Map<Class<?>, Object> map = new HashMap<>();
 
-    private MapperStorage() {
+    private MapperInstanceStorage() {
+    }
+
+    public static MapperInstanceStorage getInstance() {
+        return STORAGE;
     }
 
     /**
@@ -31,7 +35,7 @@ public final class MapperStorage {
      * @param mapperInterface
      * @return
      */
-    public Object get(Class<?> mapperInterface) {
-        return map.get(mapperInterface);
+    public <T> T get(Class<T> mapperInterface) {
+        return (T) map.get(mapperInterface);
     }
 }

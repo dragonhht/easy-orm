@@ -2,16 +2,9 @@ package com.gitee.carloshuang.template;
 
 import com.esotericsoftware.reflectasm.MethodAccess;
 import com.gitee.carloshuang.model.ResultFieldMessage;
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 
-import java.beans.IntrospectionException;
-import java.beans.PropertyDescriptor;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
