@@ -8,6 +8,7 @@ import com.gitee.carloshuang.storage.ConnectionHolder;
 import com.gitee.carloshuang.storage.MapperInstanceStorage;
 import com.gitee.carloshuang.storage.QueryResultHolder;
 import com.gitee.carloshuang.template.MapperTemplate;
+import com.gitee.carloshuang.utils.FileUtils;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
@@ -27,6 +28,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -114,7 +117,7 @@ public class MapperProcessor {
         compiler.run(null, null, null, javaFile.getAbsolutePath());
 
         // 添加到记录的map中
-        implInterfaceMap.put(packageName + implClass.name, aClass);
+        implInterfaceMap.put(packageName + "." + implClass.name, aClass);
     }
 
     /**
@@ -124,7 +127,7 @@ public class MapperProcessor {
     private void initInstance() {
         // 创建 ClassLoader
         MapperClassLoader classLoader = new MapperClassLoader(
-                new URL[]{new URL("file", null, "C:/Users/huang/Desktop/temp/carlos_huang_java/com/gitee/carloshuang/mapper/")});
+                new URL[]{new URL("file", null, classPath)});
         for (Map.Entry<String, Class<?>> entry : implInterfaceMap.entrySet()) {
             // 加载 class
             Class<?> implClass = classLoader.loadClass(entry.getKey());
@@ -135,6 +138,8 @@ public class MapperProcessor {
             // 放入存储器中
             MapperInstanceStorage.getInstance().put(entry.getValue(), result);
         }
+        // 加载完成后删除临时目录
+        FileUtils.delDir(new File(classPath));
     }
 
     /**

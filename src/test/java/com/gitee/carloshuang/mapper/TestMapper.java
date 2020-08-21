@@ -18,7 +18,7 @@ public interface TestMapper {
     @Query("select * from user")
     User getUser();
 
-    @Query("select u.id id from user")
+    @Query("select u.id id from user u")
     @Results(
             {@Result(column = "id", property = "id")}
     )

@@ -5,6 +5,7 @@ import com.esotericsoftware.reflectasm.MethodAccess;
 import com.gitee.carloshuang.annotation.Mapper;
 import com.gitee.carloshuang.constant.ParserConstant;
 import com.gitee.carloshuang.constant.PlatformType;
+import com.gitee.carloshuang.handler.MapperClassLoader;
 import com.gitee.carloshuang.mapper.TestMapper;
 import com.gitee.carloshuang.model.JdbcConnectionModel;
 import com.gitee.carloshuang.model.ResultFieldMessage;
@@ -28,6 +29,9 @@ import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.sql.*;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -163,10 +167,10 @@ public class BaseTest implements MapperTemplate {
     }
 
     @Test
-    public void te() {
+    public void te() throws MalformedURLException, ClassNotFoundException {
         MapperProcessor.init();
         TestMapper mapper = MapperInstanceStorage.getInstance().get(TestMapper.class);
-        System.out.println(mapper);
+        User user = mapper.getUserBuId(3);
     }
 
 }
