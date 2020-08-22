@@ -7,8 +7,6 @@ import com.gitee.carloshuang.annotation.Results;
 import com.gitee.carloshuang.model.User;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * .
@@ -20,12 +18,12 @@ import java.util.Set;
 public interface TestMapper {
 
     @Query("select * from user")
-    Set<User> getUser();
+    List<User> getUser();
 
-    @Query("select u.id id from user u")
+    @Query("select u.id id from user u where u.id = ?")
     @Results(
             {@Result(column = "id", property = "id")}
     )
-    List<User> getUserBuId(Integer id);
+    User getUserById(Integer id);
 
 }

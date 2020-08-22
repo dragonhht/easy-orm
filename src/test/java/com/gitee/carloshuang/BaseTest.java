@@ -6,6 +6,7 @@ import com.gitee.carloshuang.model.QueryResultType;
 import com.gitee.carloshuang.model.ResultFieldMessage;
 import com.gitee.carloshuang.model.User;
 import com.gitee.carloshuang.processor.MapperProcessor;
+import com.gitee.carloshuang.processor.QueryMethodProcessor;
 import com.gitee.carloshuang.storage.ConnectionHolder;
 import com.gitee.carloshuang.storage.MapperInstanceStorage;
 import com.gitee.carloshuang.storage.QueryResultHolder;
@@ -32,11 +33,8 @@ public class BaseTest {
 
     @Test
     public void testGetAnno() {
-//        Reflections f = new Reflections("");
-//        Set<Class<?>> set = f.getTypesAnnotatedWith(Mapper.class);
-//        for (Class<?> aClass : set) {
-//            System.out.println(aClass.getName());
-//        }
+        String sql = "select * from user where n =? and s in (:good ) and id = :userId and name = :name and id = ?";
+//        System.out.println(QueryMethodProcessor.parserSqlParam(sql));
     }
 
     @Test
@@ -58,12 +56,14 @@ public class BaseTest {
 
     @Test
     public void testDataSource() {
-        String sql = "select * from user";
+        String sql = "select * from user where id in (?)";
         Connection connection = null;
         PreparedStatement statement = null;
         try {
             connection = ConnectionHolder.getInstance().getConnection();
             statement = connection.prepareStatement(sql);
+            Array array = connection.createArrayOf("int", new Object[] {1, 2});
+            statement.setArray(1, array);
             ResultSet resultSet = statement.executeQuery();
             ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
             int count = resultSetMetaData.getColumnCount();
@@ -156,8 +156,8 @@ public class BaseTest {
     public void te() {
         MapperProcessor.init();
         TestMapper mapper = MapperInstanceStorage.getInstance().get(TestMapper.class);
-        Set<User> users = mapper.getUser();
-        System.out.println(users);
+        List<User> user = mapper.getUser();
+        System.out.println(user);
     }
 
     @Test

@@ -37,8 +37,16 @@ public class MapperTemplate {
         if (resultType.isCollection()) {
             return handlerCollection(resultType, fieldMap, resultSet);
         }
-
-        return null;
+        // Map类型
+        if (resultType.isMap()) {
+            return handlerMap(resultSet);
+        }
+        // 数组类型
+        if (resultType.isArray()) {
+            return handlerArray(resultSet, resultType.getReturnType());
+        }
+        // 自定义模型
+        return handlerCustomerModel(resultType.getReturnType(), fieldMap, resultSet);
     }
 
     /**
@@ -93,7 +101,7 @@ public class MapperTemplate {
      * @throws IllegalAccessException
      * @throws InstantiationException
      */
-    public <T> void handlerCollectionCustomerModel(Collection result, Class<T> type,
+    private  <T> void handlerCollectionCustomerModel(Collection result, Class<T> type,
                                                    Map<String, ResultFieldMessage> fieldMap, ResultSet resultSet)
             throws SQLException, IllegalAccessException, InstantiationException {
         try {
@@ -116,11 +124,63 @@ public class MapperTemplate {
     }
 
     /**
+     * 处理填充自定义模型
+     * @param type
+     * @param fieldMap
+     * @param resultSet
+     * @param <T>
+     * @return
+     */
+    private <T> T handlerCustomerModel(Class<T> type, Map<String,
+            ResultFieldMessage> fieldMap, ResultSet resultSet) throws SQLException, IllegalAccessException, InstantiationException {
+        T target = null;
+        try {
+            ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
+            int count = resultSetMetaData.getColumnCount();
+            int index = 0;
+            while (resultSet.next()) {
+                target = type.newInstance();
+                for (int i = 1; i <= count; i++) {
+                    String name = resultSetMetaData.getColumnLabel(i);
+                    if (fieldMap.containsKey(name)) {
+                        ResultFieldMessage fieldMessage = fieldMap.get(name);
+                        setValue(target, fieldMessage, resultSet.getObject(name));
+                    }
+                }
+                if (index > 0) throw new QueryNotUniqueException();
+                index++;
+            }
+        } finally {
+            resultSet.close();
+        }
+        return target;
+    }
+
+    /**
      * 处理可接收基本类型、String、Date类型的集合
      * @param result
      * @param resultSet
      */
     private void handlerCollectionPrimitive(Collection result, ResultSet resultSet) throws SQLException {
+        try {
+            ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
+            int count = resultSetMetaData.getColumnCount();
+            while (resultSet.next()) {
+                for (int i = 1; i <= count; i++) {
+                    result.add(resultSet.getObject(i));
+                }
+            }
+        } finally {
+            resultSet.close();
+        }
+    }
+
+    /**
+     * 处理泛型为Map类型的集合
+     * @param result
+     * @param resultSet
+     */
+    private void handlerCollectionMap(Collection result, ResultSet resultSet) throws SQLException {
         try {
             ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
             int count = resultSetMetaData.getColumnCount();
@@ -138,22 +198,28 @@ public class MapperTemplate {
     }
 
     /**
-     * 处理泛型为Map类型的集合
-     * @param result
+     * 处理Map类型
      * @param resultSet
+     * @return
      */
-    private void handlerCollectionMap(Collection result, ResultSet resultSet) throws SQLException {
+    public Map handlerMap(ResultSet resultSet) throws SQLException {
+        Map<Object, Object> map = new HashMap<>();
         try {
             ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
             int count = resultSetMetaData.getColumnCount();
+            int index = 0;
             while (resultSet.next()) {
                 for (int i = 1; i <= count; i++) {
-                    result.add(resultSet.getObject(i));
+                    String name = resultSetMetaData.getColumnLabel(i);
+                    map.put(name, resultSet.getObject(name));
                 }
+                if (index > 0) throw new QueryNotUniqueException();
+                index++;
             }
         } finally {
             resultSet.close();
         }
+        return map;
     }
 
     /**
@@ -179,6 +245,35 @@ public class MapperTemplate {
     }
 
     /**
+     * 处理数组类型
+     * @param resultSet
+     * @param type
+     * @param <T>
+     * @return
+     * @throws SQLException
+     */
+    private <T> T[] handlerArray(ResultSet resultSet, Class<T> type) throws SQLException {
+        T[] array = (T[]) Array.newInstance(type, 0);
+        try {
+            ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
+            int count = resultSetMetaData.getColumnCount();
+            int index = 0;
+            while (resultSet.next()) {
+                // 创建数组
+                array = (T[]) Array.newInstance(type, count);
+                for (int i = 1; i <= count; i++) {
+                    array[i - 1] = resultSet.getObject(i, type);
+                }
+                if (index > 1) throw new QueryNotUniqueException();
+                index++;
+            }
+        } finally {
+            resultSet.close();
+        }
+        return array;
+    }
+
+    /**
      * 方法返回为基本类型时处理结果
      * @param resultSet
      * @return
@@ -189,7 +284,7 @@ public class MapperTemplate {
             int count = 0;
             while (resultSet.next()) {
                 result = resultSet.getObject(1);
-                if (count > 1) throw new QueryNotUniqueException();
+                if (count > 0) throw new QueryNotUniqueException();
                 count++;
             }
         } finally {
