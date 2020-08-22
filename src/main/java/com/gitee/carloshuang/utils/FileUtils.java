@@ -1,7 +1,6 @@
 package com.gitee.carloshuang.utils;
 
 import java.io.File;
-import java.io.IOException;
 
 /**
  * 文件工具类.

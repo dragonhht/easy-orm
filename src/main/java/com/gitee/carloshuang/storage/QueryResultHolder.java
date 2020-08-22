@@ -1,5 +1,6 @@
 package com.gitee.carloshuang.storage;
 
+import com.gitee.carloshuang.model.QueryResultType;
 import com.gitee.carloshuang.model.ResultFieldMessage;
 
 import java.util.HashMap;
@@ -13,8 +14,10 @@ import java.util.Map;
  */
 public class QueryResultHolder {
     private static QueryResultHolder HOLDER;
-
+    /** 存放方法查询结果字段与返回实体字段的关系. */
     private static final Map<String, Map<String, ResultFieldMessage>> map = new HashMap<>();
+    /** 存放方法返回类型. */
+    private static final Map<String, QueryResultType> typeMap = new HashMap<>();
 
     private QueryResultHolder() {}
 
@@ -34,7 +37,7 @@ public class QueryResultHolder {
      * @param id 方法id
      * @param resultMap 字段映射关系
      */
-    public void put(String id, Map<String, ResultFieldMessage> resultMap) {
+    public void putFieldMap(String id, Map<String, ResultFieldMessage> resultMap) {
         map.put(id, resultMap);
     }
 
@@ -45,5 +48,23 @@ public class QueryResultHolder {
      */
     public Map<String, ResultFieldMessage> getResultMap(String id) {
         return map.get(id);
+    }
+
+    /**
+     * 保存方法返回类型
+     * @param id
+     * @param type
+     */
+    public void putResultType(String id, QueryResultType type) {
+        typeMap.put(id, type);
+    }
+
+    /**
+     * 获取方法返回类型
+     * @param id
+     * @return
+     */
+    public QueryResultType getResultType(String id) {
+        return typeMap.get(id);
     }
 }

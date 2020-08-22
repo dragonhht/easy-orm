@@ -3,6 +3,7 @@ package com.gitee.carloshuang.processor;
 import com.gitee.carloshuang.annotation.*;
 import com.gitee.carloshuang.handler.MapperClassLoader;
 import com.gitee.carloshuang.handler.MapperProxyInvocationHandler;
+import com.gitee.carloshuang.model.QueryResultType;
 import com.gitee.carloshuang.model.ResultFieldMessage;
 import com.gitee.carloshuang.storage.ConnectionHolder;
 import com.gitee.carloshuang.storage.MapperInstanceStorage;
@@ -24,19 +25,13 @@ import javax.tools.ToolProvider;
 import java.beans.IntrospectionException;
 import java.beans.PropertyDescriptor;
 import java.io.File;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
+import java.lang.reflect.*;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static com.gitee.carloshuang.constant.ParserConstant.JAVA_FILE_PATH;
 
@@ -50,11 +45,17 @@ public class MapperProcessor {
 
     private static MapperProcessor PROCESSOR;
     /** java文件存放路径. */
-    private String classPath = "C:/Users/huang/Desktop/temp/" + JAVA_FILE_PATH + "/";
+    private static final String TEMP_CLASS_PATH;
     /** 包含该注解的类. */
     private Set<Class<?>> classSet;
     /** 实现类全限定名与接口对应关系. */
     private Map<String, Class<?>> implInterfaceMap = new HashMap<>();
+
+    static {
+        TEMP_CLASS_PATH = System.getProperty("java.io.tmpdir") + File.separator +
+                JAVA_FILE_PATH + System.currentTimeMillis() + File.separator
+                .replace(File.separator, "/");
+    }
 
     private MapperProcessor() {
         // 获取有包含Mapper注解的类
@@ -111,7 +112,7 @@ public class MapperProcessor {
         TypeSpec implClass = typeBuilder.build();
         // 生成源文件
         JavaFile file = JavaFile.builder(packageName, implClass).build();
-        File javaFile = file.writeToFile(new File(classPath));
+        File javaFile = file.writeToFile(new File(TEMP_CLASS_PATH));
         // 编译java文件
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         compiler.run(null, null, null, javaFile.getAbsolutePath());
@@ -127,7 +128,7 @@ public class MapperProcessor {
     private void initInstance() {
         // 创建 ClassLoader
         MapperClassLoader classLoader = new MapperClassLoader(
-                new URL[]{new URL("file", null, classPath)});
+                new URL[]{new URL("file", null, TEMP_CLASS_PATH)});
         for (Map.Entry<String, Class<?>> entry : implInterfaceMap.entrySet()) {
             // 加载 class
             Class<?> implClass = classLoader.loadClass(entry.getKey());
@@ -139,7 +140,7 @@ public class MapperProcessor {
             MapperInstanceStorage.getInstance().put(entry.getValue(), result);
         }
         // 加载完成后删除临时目录
-        FileUtils.delDir(new File(classPath));
+        FileUtils.delDir(new File(TEMP_CLASS_PATH));
     }
 
     /**
@@ -155,8 +156,8 @@ public class MapperProcessor {
         return TypeSpec.classBuilder(name)
                 .addModifiers(Modifier.PUBLIC)
                 .addSuperinterface(superinterface)
-                // 继承模板接口
-                .addSuperinterface(mapperTemplate);
+                // 继承模板类
+                .superclass(mapperTemplate);
     }
 
     /**
@@ -185,13 +186,15 @@ public class MapperProcessor {
                         "$T statement = null;\n" +
                         "$T result = null;\n" +
                         "try {\n",
-                            Connection.class, PreparedStatement.class, Object.class);
+                            Connection.class, PreparedStatement.class, method.getReturnType());
         methodBuilder.addStatement("connection = $T.getInstance().getConnection()", ConnectionHolder.class);
         methodBuilder.addStatement("statement = connection.prepareStatement($S)", sql);
         methodBuilder.addStatement("$T resultSet = statement.executeQuery()", ResultSet.class);
         methodBuilder.addStatement("$T<String, $T> resultFieldMessageMap = $T.getInstance().getResultMap($S)",
                 Map.class, ResultFieldMessage.class, QueryResultHolder.class, methodId);
-        methodBuilder.addStatement("result = fillData($T.class, resultFieldMessageMap, resultSet)", method.getReturnType());
+        methodBuilder.addStatement("$T resultType = QueryResultHolder.getInstance().getResultType($S)",
+                QueryResultType.class, methodId);
+        methodBuilder.addStatement("result = ($T) fillData(resultType, resultFieldMessageMap, resultSet)", method.getReturnType());
         methodBuilder.addCode("}catch ($T e) {\n" +
                 "            throw new $T(e);\n" +
                 "        } finally {\n" +
@@ -205,7 +208,7 @@ public class MapperProcessor {
                 "            ConnectionHolder.getInstance().closeConnection();\n" +
                 "        }\n",
                 Exception.class, RuntimeException.class, SQLException.class);
-        methodBuilder.addStatement("return $T.class.cast(result)", method.getReturnType());
+        methodBuilder.addStatement("return result");
         return methodBuilder.build();
     }
 
@@ -229,13 +232,97 @@ public class MapperProcessor {
                 map.put(result.column(), result.property());
             }
         }
-        // TODO 集合数组等类型后续处理
-        Class<?> returnType = method.getReturnType();
-        Map<String, ResultFieldMessage> resultMap = resultMap(returnType, map);
         // 保存
         String methodId = namespace + "." + id;
-        QueryResultHolder.getInstance().put(methodId, resultMap);
+        // 解析方法返回类型
+        QueryResultType queryResultType = parserQueryMethodReturn(method.getReturnType(), method.getGenericReturnType());
+        // 保存方法返回类型
+        QueryResultHolder.getInstance().putResultType(methodId, queryResultType);
+        // 解析查询结果字段与实体对应关系
+        Map<String, ResultFieldMessage> resultMap = resultMap(queryResultType, map);
+        QueryResultHolder.getInstance().putFieldMap(methodId, resultMap);
         return methodId;
+    }
+
+    /**
+     * 解析方法返回类型信息
+     * @return
+     */
+    private QueryResultType parserQueryMethodReturn(Class<?> returnType, Type type) {
+        QueryResultType resultType = new QueryResultType();
+        resultType.setReturnType(returnType);
+        // 是否为基本类型
+        if (resultType.isPrimitive()) {
+            resultType.setPrimitive(true);
+            return resultType;
+        } else {
+            // 判断是否为字符串、Date或和转为基本类型
+            if (returnType.equals(String.class) || returnType.equals(Date.class) || returnType.equals(Double.class)
+                    || returnType.equals(Float.class) || returnType.equals(Long.class) || returnType.equals(Integer.class)
+                    || returnType.equals(Boolean.class)) {
+                resultType.setPrimitive(true);
+                return resultType;
+            }
+        }
+        // 集合类型
+        if (Collection.class.isAssignableFrom(returnType)) {
+            if (!List.class.isAssignableFrom(returnType) && !Set.class.isAssignableFrom(returnType))
+                throw new RuntimeException("暂时只支持List或Set");
+            resultType.setCollection(true);
+            // 查询泛型类型
+            parserGenericType(type, resultType);
+        }
+        // 数组类型
+        if (returnType.isArray()) {
+            resultType.setArray(true);
+        }
+        return resultType;
+    }
+
+    /**
+     * 处理数组类型
+     * @param resultType
+     */
+    private void parserArrayType(Class<?> type, QueryResultType resultType) {
+        Class<?> clazz = type.getComponentType();
+        resultType.setReturnType(clazz);
+    }
+
+    /**
+     * 处理集合和Map类型
+     * @param type
+     */
+    private void parserGenericType(Type type, QueryResultType resultType) {
+        Type[] subTypes = ((ParameterizedType) type).getActualTypeArguments();
+        Class<?>[] subTypeClasses = new Class<?>[subTypes.length];
+        for (int i = 0; i < subTypes.length; i++) {
+            Type subType = subTypes[i];
+            // 判断是否为参数化类型
+            if (subType instanceof ParameterizedType) {
+                // 获取类型
+                Class<?> clazz = (Class<?>) ((ParameterizedType) subType).getRawType();
+                // 是否为Map类型
+                if (!Map.class.isAssignableFrom(clazz)) throw new RuntimeException("暂时只支持Collection<Map>多级泛型参数");
+                QueryResultType subResultType = new QueryResultType();
+                subResultType.setReturnType(clazz);
+                subResultType.setMap(true);
+                resultType.setSubResultType(subResultType);
+                subTypeClasses[i] = clazz;
+                continue;
+            }
+            Class<?> clazz = (Class<?>) subType;
+            if (!clazz.isArray()) {
+                subTypeClasses[i] = clazz;
+                QueryResultType subResultType = parserQueryMethodReturn(clazz, null);
+                resultType.setSubResultType(subResultType);
+                continue;
+            }
+            QueryResultType subResultType = new QueryResultType();
+            subResultType.setArray(true);
+            parserArrayType(clazz, subResultType);
+            resultType.setSubResultType(subResultType);
+        }
+        resultType.setSubType(subTypeClasses);
     }
 
     /**
@@ -277,13 +364,28 @@ public class MapperProcessor {
 
     /**
      * 组装查询结果字段映射关系
-     * @param returnType 返回类型
+     * @param queryResultType 返回类型
      * @param resultMapSettings 用户自定义的映射关系
      * @return
      */
     @SneakyThrows
-    private Map<String, ResultFieldMessage> resultMap(Class<?> returnType, Map<String, String> resultMapSettings) {
-        Map<String, ResultFieldMessage> resultMap = handlerResultMapSetting(returnType, resultMapSettings);
+    private Map<String, ResultFieldMessage> resultMap(QueryResultType queryResultType, Map<String, String> resultMapSettings) {
+        Map<String, ResultFieldMessage> resultMap = new HashMap<>();
+        Class<?> returnType = null;
+        // 是实体模型或集合下为实体模型是才解析
+        if (isModel(queryResultType) ) {
+            returnType = queryResultType.getReturnType();
+            Map<String, ResultFieldMessage> settingResultMap = handlerResultMapSetting(returnType, resultMapSettings);
+            resultMap.putAll(settingResultMap);
+        } else if ((queryResultType.isCollection() && isModel(queryResultType.getSubResultType()))) {
+            returnType = queryResultType.getSubType()[0];
+            Map<String, ResultFieldMessage> settingResultMap =
+                    handlerResultMapSetting(returnType, resultMapSettings);
+            resultMap.putAll(settingResultMap);
+        } else {
+            // 没有模型则直接返回不进行下一步解析
+            return resultMap;
+        }
         // 实体其余字段按属性名对应
         Field[] fields = returnType.getDeclaredFields();
         for (Field field : fields) {
@@ -295,6 +397,16 @@ public class MapperProcessor {
             }
         }
         return resultMap;
+    }
+
+    /**
+     * 判断返回结果类型是否为实体模型
+     * @param resultType
+     * @return
+     */
+    private boolean isModel(QueryResultType resultType) {
+        if (resultType == null) return false;
+        return !resultType.isArray() && !resultType.isCollection() && !resultType.isMap() && !resultType.isPrimitive();
     }
 
     /**

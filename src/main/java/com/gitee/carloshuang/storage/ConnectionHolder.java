@@ -1,8 +1,6 @@
 package com.gitee.carloshuang.storage;
 
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-
 import java.sql.Connection;
 
 /**
@@ -11,7 +9,6 @@ import java.sql.Connection;
  * @author: Carlos Huang
  * @Date: 2020-8-19
  */
-@Slf4j
 public class ConnectionHolder {
     private static ConnectionHolder HOLDER;
     private ThreadLocal<Connection> connectionThreadLocal = new ThreadLocal<>();

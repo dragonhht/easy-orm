@@ -1,44 +1,201 @@
 package com.gitee.carloshuang.template;
 
 import com.esotericsoftware.reflectasm.MethodAccess;
+import com.gitee.carloshuang.exception.QueryNotUniqueException;
+import com.gitee.carloshuang.model.QueryResultType;
 import com.gitee.carloshuang.model.ResultFieldMessage;
 
+import java.lang.reflect.Array;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
-import java.util.Map;
+import java.sql.SQLException;
+import java.util.*;
 
 /**
- * Mapper模板接口.
+ * Mapper模板.
  *
  * @author: Carlos Huang
  * @Date: 2020-8-19
  */
-public interface MapperTemplate {
+public class MapperTemplate {
 
     /**
      * 查询结果填充
-     * @param returnType
+     * @param resultType
      * @param fieldMap
      * @param resultSet
      * @return
      * @throws Exception
      */
-    default Object fillData(Class<?> returnType, Map<String, ResultFieldMessage> fieldMap, ResultSet resultSet) throws Exception {
-        ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
-        int count = resultSetMetaData.getColumnCount();
-        while (resultSet.next()) {
-            Object target = returnType.newInstance();
-            for (int i = 1; i < count; i++) {
-                String name = resultSetMetaData.getColumnLabel(i);
-                if (fieldMap.containsKey(name)) {
-                    ResultFieldMessage fieldMessage = fieldMap.get(name);
-                    setValue(target, fieldMessage, resultSet.getObject(name));
+    protected final Object fillData(QueryResultType resultType, Map<String, ResultFieldMessage> fieldMap,
+                                    ResultSet resultSet) throws Exception {
+        // 方法返回为基本类型
+        if (resultType.isPrimitive()) {
+            return handlerPrimitive(resultSet);
+        }
+        // 返回数组集合
+        if (resultType.isCollection()) {
+            return handlerCollection(resultType, fieldMap, resultSet);
+        }
+
+        return null;
+    }
+
+    /**
+     * 方法返回为集合时处理结果
+     * @param resultType
+     * @param fieldMap
+     * @param resultSet
+     * @return
+     */
+    private Object handlerCollection(QueryResultType resultType, Map<String, ResultFieldMessage> fieldMap,
+                                     ResultSet resultSet) throws IllegalAccessException, InstantiationException, SQLException {
+        // 创建返回对象
+        Class<?> type = resultType.getReturnType();
+        Collection result = null;
+        // 是否为接口
+        if (!type.isInterface()) {
+            result = (Collection) type.newInstance();
+        } else {
+            // 如果为List
+            if (List.class.isAssignableFrom(type)) result = new ArrayList();
+            if (Set.class.isAssignableFrom(type)) result = new HashSet();
+        }
+        QueryResultType subType = resultType.getSubResultType();
+        // 基本类型、String、Date类型
+        if (subType.isPrimitive()) {
+            handlerCollectionPrimitive(result, resultSet);
+            return result;
+        }
+        // Map类型
+        if (subType.isMap()) {
+            handlerCollectionMap(result, resultSet);
+            return result;
+        }
+        // 数组类型
+        if (subType.isArray()) {
+            handlerCollectionArray(result, resultSet, subType.getReturnType());
+            return result;
+        }
+        // 自定义实体
+        handlerCollectionCustomerModel(result, subType.getReturnType(), fieldMap, resultSet);
+        return result;
+    }
+
+    /**
+     * 处理自定义模型的集合
+     * @param result
+     * @param type
+     * @param fieldMap
+     * @param resultSet
+     * @param <T>
+     * @throws SQLException
+     * @throws IllegalAccessException
+     * @throws InstantiationException
+     */
+    public <T> void handlerCollectionCustomerModel(Collection result, Class<T> type,
+                                                   Map<String, ResultFieldMessage> fieldMap, ResultSet resultSet)
+            throws SQLException, IllegalAccessException, InstantiationException {
+        try {
+            ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
+            int count = resultSetMetaData.getColumnCount();
+            while (resultSet.next()) {
+                T target = type.newInstance();
+                for (int i = 1; i <= count; i++) {
+                    String name = resultSetMetaData.getColumnLabel(i);
+                    if (fieldMap.containsKey(name)) {
+                        ResultFieldMessage fieldMessage = fieldMap.get(name);
+                        setValue(target, fieldMessage, resultSet.getObject(name));
+                    }
+                }
+                result.add(target);
+            }
+        } finally {
+            resultSet.close();
+        }
+    }
+
+    /**
+     * 处理可接收基本类型、String、Date类型的集合
+     * @param result
+     * @param resultSet
+     */
+    private void handlerCollectionPrimitive(Collection result, ResultSet resultSet) throws SQLException {
+        try {
+            ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
+            int count = resultSetMetaData.getColumnCount();
+            while (resultSet.next()) {
+                Map<Object, Object> map = new HashMap<>();
+                for (int i = 1; i <= count; i++) {
+                    String name = resultSetMetaData.getColumnLabel(i);
+                    map.put(name, resultSet.getObject(name));
+                }
+                result.add(map);
+            }
+        } finally {
+            resultSet.close();
+        }
+    }
+
+    /**
+     * 处理泛型为Map类型的集合
+     * @param result
+     * @param resultSet
+     */
+    private void handlerCollectionMap(Collection result, ResultSet resultSet) throws SQLException {
+        try {
+            ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
+            int count = resultSetMetaData.getColumnCount();
+            while (resultSet.next()) {
+                for (int i = 1; i <= count; i++) {
+                    result.add(resultSet.getObject(i));
                 }
             }
-            System.out.println("结果: " + target);
+        } finally {
+            resultSet.close();
         }
-        resultSet.close();
-        return null;
+    }
+
+    /**
+     * 处理泛型为 数组类型的集合
+     * @param result
+     * @param resultSet
+     */
+    private <T> void handlerCollectionArray(Collection result, ResultSet resultSet, Class<T> type) throws SQLException {
+        try {
+            ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
+            int count = resultSetMetaData.getColumnCount();
+            while (resultSet.next()) {
+                // 创建数组
+                T[] array = (T[]) Array.newInstance(type, count);
+                for (int i = 1; i <= count; i++) {
+                    array[i - 1] = resultSet.getObject(i, type);
+                }
+                result.add(array);
+            }
+        } finally {
+            resultSet.close();
+        }
+    }
+
+    /**
+     * 方法返回为基本类型时处理结果
+     * @param resultSet
+     * @return
+     */
+    private Object handlerPrimitive(ResultSet resultSet) throws SQLException {
+        Object result = null;
+        try {
+            int count = 0;
+            while (resultSet.next()) {
+                result = resultSet.getObject(1);
+                if (count > 1) throw new QueryNotUniqueException();
+                count++;
+            }
+        } finally {
+            resultSet.close();
+        }
+        return result;
     }
 
     /**
@@ -47,7 +204,7 @@ public interface MapperTemplate {
      * @param fieldMessage 目标属性设置信息
      * @param value 值
      */
-    default void setValue(Object target, ResultFieldMessage fieldMessage, Object value) throws IllegalAccessException, InstantiationException {
+    protected final void setValue(Object target, ResultFieldMessage fieldMessage, Object value) throws IllegalAccessException, InstantiationException {
         MethodAccess methodAccess = MethodAccess.get(target.getClass());
         String field = fieldMessage.getProperty();
         String[] fields = field.split("\\.");

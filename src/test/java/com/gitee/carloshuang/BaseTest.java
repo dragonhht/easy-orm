@@ -1,13 +1,8 @@
 package com.gitee.carloshuang;
 
-import com.esotericsoftware.reflectasm.FieldAccess;
 import com.esotericsoftware.reflectasm.MethodAccess;
-import com.gitee.carloshuang.annotation.Mapper;
-import com.gitee.carloshuang.constant.ParserConstant;
-import com.gitee.carloshuang.constant.PlatformType;
-import com.gitee.carloshuang.handler.MapperClassLoader;
 import com.gitee.carloshuang.mapper.TestMapper;
-import com.gitee.carloshuang.model.JdbcConnectionModel;
+import com.gitee.carloshuang.model.QueryResultType;
 import com.gitee.carloshuang.model.ResultFieldMessage;
 import com.gitee.carloshuang.model.User;
 import com.gitee.carloshuang.processor.MapperProcessor;
@@ -15,23 +10,14 @@ import com.gitee.carloshuang.storage.ConnectionHolder;
 import com.gitee.carloshuang.storage.MapperInstanceStorage;
 import com.gitee.carloshuang.storage.QueryResultHolder;
 import com.gitee.carloshuang.template.MapperTemplate;
-import com.gitee.carloshuang.utils.DataSourceUtils;
 import org.junit.Test;
-import org.reflections.Reflections;
 
-import javax.annotation.processing.RoundEnvironment;
-import javax.sql.DataSource;
-import javax.tools.JavaCompiler;
-import javax.tools.ToolProvider;
 import java.beans.IntrospectionException;
 import java.beans.PropertyDescriptor;
-import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLClassLoader;
+import java.lang.reflect.Type;
 import java.sql.*;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -42,7 +28,7 @@ import java.util.concurrent.TimeUnit;
  * @author: Carlos Huang
  * @Date: 2020-8-17
  */
-public class BaseTest implements MapperTemplate {
+public class BaseTest {
 
     @Test
     public void testGetAnno() {
@@ -113,7 +99,7 @@ public class BaseTest implements MapperTemplate {
             statement = connection.prepareStatement(sql);
             ResultSet resultSet = statement.executeQuery();
             Map<String, ResultFieldMessage> resultFieldMessageMap = QueryResultHolder.getInstance().getResultMap("");
-            result = fillData(User.class, resultFieldMessageMap, resultSet);
+            QueryResultType resultType = QueryResultHolder.getInstance().getResultType("");
         }catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
@@ -167,10 +153,42 @@ public class BaseTest implements MapperTemplate {
     }
 
     @Test
-    public void te() throws MalformedURLException, ClassNotFoundException {
+    public void te() {
         MapperProcessor.init();
         TestMapper mapper = MapperInstanceStorage.getInstance().get(TestMapper.class);
-        User user = mapper.getUserBuId(3);
+        Set<User> users = mapper.getUser();
+        System.out.println(users);
+    }
+
+    @Test
+    public void test() {
+        Class<?> type = List.class;
+        User[] users = new User[0];
+        String s = "";
+        System.out.println("是否为字符串类型: " + s.getClass().equals(String.class));
+        System.out.println("是否基本类型: " + double.class.isPrimitive());
+        System.out.println("是否为集合: " + Collection.class.isAssignableFrom(type));
+        System.out.println("是否为数组: " + users.getClass().isArray());
+        Method[] methods = Te.class.getDeclaredMethods();
+        for (Method method : methods) {
+            Class<?> re = method.getReturnType();
+            if (Collection.class.isAssignableFrom(re)) {
+                Type returnType = method.getGenericReturnType();
+                Type subType =  ((ParameterizedType) returnType).getActualTypeArguments()[0];
+                if (subType instanceof  ParameterizedType) {
+                    Class<?> t = (Class<?>) ((ParameterizedType) subType).getRawType();
+                    System.out.println("是否为Map: " + Map.class.isAssignableFrom(t));
+                    Type[] sus = ((ParameterizedType) subType).getActualTypeArguments();
+                    System.out.println(Arrays.toString(sus));
+                    System.out.println(subType);
+                    continue;
+                }
+                Class<?> clzz = (Class<?>) subType;
+                if (clzz.isArray()) System.out.println("数组");
+            }
+        }
+        int[] us = new int[0];
+        System.out.println(us.getClass().getComponentType());
     }
 
 }
