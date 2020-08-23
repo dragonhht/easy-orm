@@ -6,11 +6,9 @@ import com.gitee.carloshuang.model.QueryResultType;
 import com.gitee.carloshuang.model.ResultFieldMessage;
 import com.gitee.carloshuang.model.User;
 import com.gitee.carloshuang.processor.MapperProcessor;
-import com.gitee.carloshuang.processor.QueryMethodProcessor;
 import com.gitee.carloshuang.storage.ConnectionHolder;
 import com.gitee.carloshuang.storage.MapperInstanceStorage;
 import com.gitee.carloshuang.storage.QueryResultHolder;
-import com.gitee.carloshuang.template.MapperTemplate;
 import org.junit.Test;
 
 import java.beans.IntrospectionException;
@@ -158,6 +156,8 @@ public class BaseTest {
         TestMapper mapper = MapperInstanceStorage.getInstance().get(TestMapper.class);
         List<User> user = mapper.getUser();
         System.out.println(user);
+        User u = mapper.getUserById(1);
+        System.out.println("getById: " + u);
     }
 
     @Test

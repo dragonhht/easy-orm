@@ -1,9 +1,6 @@
 package com.gitee.carloshuang.mapper;
 
-import com.gitee.carloshuang.annotation.Mapper;
-import com.gitee.carloshuang.annotation.Query;
-import com.gitee.carloshuang.annotation.Result;
-import com.gitee.carloshuang.annotation.Results;
+import com.gitee.carloshuang.annotation.*;
 import com.gitee.carloshuang.model.User;
 
 import java.util.List;
@@ -20,10 +17,10 @@ public interface TestMapper {
     @Query("select * from user")
     List<User> getUser();
 
-    @Query("select u.id id from user u where u.id = ?")
+    @Query("select u.id id, u.name name from user u where u.id = :id")
     @Results(
             {@Result(column = "id", property = "id")}
     )
-    User getUserById(Integer id);
+    User getUserById(@Param("id") Integer id);
 
 }

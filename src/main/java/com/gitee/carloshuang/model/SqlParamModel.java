@@ -15,5 +15,7 @@ public class SqlParamModel {
     /** 需要参数数量. */
     private int size;
     /** 别名的索引. */
-    private Map<String, Integer> aliasMap;
+    private Map<Integer, String> aliasMap;
+    /** 最终sql. */
+    private String sql;
 }

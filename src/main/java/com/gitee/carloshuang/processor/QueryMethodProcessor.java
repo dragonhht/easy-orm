@@ -3,6 +3,7 @@ package com.gitee.carloshuang.processor;
 import com.gitee.carloshuang.annotation.Query;
 import com.gitee.carloshuang.annotation.Result;
 import com.gitee.carloshuang.annotation.Results;
+import com.gitee.carloshuang.model.Param;
 import com.gitee.carloshuang.model.QueryResultType;
 import com.gitee.carloshuang.model.ResultFieldMessage;
 import com.gitee.carloshuang.model.SqlParamModel;
@@ -10,6 +11,7 @@ import com.gitee.carloshuang.storage.ConnectionHolder;
 import com.gitee.carloshuang.storage.QueryResultHolder;
 import com.squareup.javapoet.MethodSpec;
 import lombok.SneakyThrows;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import javax.lang.model.element.Modifier;
@@ -21,6 +23,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 查询方法处理器.
@@ -55,6 +58,12 @@ class QueryMethodProcessor {
         // 解析 Query
         Query anno = method.getDeclaredAnnotation(Query.class);
         String sql = anno.value();
+        // 解析SQL
+        SqlParamModel sqlForParam = parserSqlParam(sql);
+        sql = sqlForParam.getSql();
+        // 解析方法参数
+        List<Param> sqlParam = parserParams(method);
+        // 创建实现类方法源代码
         Parameter[] params = method.getParameters();
         MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder(method.getName())
                 .addAnnotation(Override.class)
@@ -72,6 +81,26 @@ class QueryMethodProcessor {
                 Connection.class, PreparedStatement.class, method.getReturnType());
         methodBuilder.addStatement("connection = $T.getInstance().getConnection()", ConnectionHolder.class);
         methodBuilder.addStatement("statement = connection.prepareStatement($S)", sql);
+        // sql传参
+        int paramSize = sqlForParam.getSize();
+        // 判断使用别名的参数是否为空
+        Map<Integer, String> aliasMap = sqlForParam.getAliasMap();
+        // 无别名时传参
+        if (aliasMap == null || aliasMap.size() == 0) {
+            for (int i = 1; i <= paramSize; i++) {
+                methodBuilder.addStatement("statement.setObject($L, $N)", i, sqlParam.get(i - 1).getName());
+            }
+        } else {
+            Map<String, Param> paramMap = sqlParam.stream().collect(Collectors.toMap(Param::getAlias, v -> v, (v1, v2) -> v2));
+            // 有别名时传参
+            for (int i = 1; i <= paramSize; i++) {
+                // 获取别名参数
+                String alias = aliasMap.get(i);
+                // 对应的参数名
+                String paramName = paramMap.get(alias).getName();
+                methodBuilder.addStatement("statement.setObject($L, $N)", i, paramName);
+            }
+        }
         methodBuilder.addStatement("$T resultSet = statement.executeQuery()", ResultSet.class);
         methodBuilder.addStatement("$T<String, $T> resultFieldMessageMap = $T.getInstance().getResultMap($S)",
                 Map.class, ResultFieldMessage.class, QueryResultHolder.class, methodId);
@@ -96,16 +125,42 @@ class QueryMethodProcessor {
     }
 
     /**
+     * 解析方法参数
+     * @param method
+     * @return
+     */
+    private List<Param> parserParams(Method method) {
+        Parameter[] parameters = method.getParameters();
+        List<Param> params = new ArrayList<>(parameters.length);
+        for (Parameter parameter : parameters) {
+            Param param = new Param();
+            // 是否为数组，集合
+            Class<?> clazz = parameter.getType();
+            if (clazz.isArray() || Collection.class.isAssignableFrom(clazz)) {
+                param.setPlural(true);
+            }
+            param.setName(parameter.getName());
+            com.gitee.carloshuang.annotation.Param anno = parameter.getAnnotation(com.gitee.carloshuang.annotation.Param.class);
+            if (anno != null) {
+                param.setAlias(anno.value());
+            }
+            params.add(param);
+        }
+        return params;
+    }
+
+    /**
      * 解析sql语句中需要传递的参数
      * @param sql sql语句
      * @return
      */
     private SqlParamModel parserSqlParam(String sql) {
+        // TODO 需整理优化代码
         SqlParamModel model = new SqlParamModel();
         // 是否在字符串常量中
         boolean isInStr = false;
         int size = 0;
-        Map<String, Integer> map = new HashMap<>();
+        Map<Integer, String> map = new HashMap<>();
         int start = 0, end = 0;
         // 是否是使用?占位符
         char[] chars = sql.toCharArray();
@@ -123,17 +178,31 @@ class QueryMethodProcessor {
                 continue;
             }
             // 发现占位符后，查找到空格或到最后一个字符
-            if (!isInStr && start > 0 && (end - 1 > start + 1)  && (chars[i] == ' ' || i == len - 1)) {
+            if (!isInStr && start > 0 && (end > start + 1)  && (chars[i] == ' ' || i == len - 1)) {
                 // 记录的范围内，最后一个是否为右括号, 左侧是否有左括号
                 if (chars[end - 1] == ')') {
                     int index = start - 1;
                     while (chars[index] == ' ') index--;
                     if (chars[index] == '(') {
                         char[] alias = Arrays.copyOfRange(chars, start + 1, end - 1);
-                        map.put(new String(alias), ++size);
+                        // 将别名部分改为 ?占位符
+                        int dex = start;
+                        while (dex < end - 1) {
+                            char ch = dex == start ? '?' : ' ';
+                            chars[dex] = ch;
+                            dex++;
+                        }
+                        map.put(++size, new String(alias));
                     } else {
                         char[] alias = Arrays.copyOfRange(chars, start + 1, end);
-                        map.put(new String(alias), ++size);
+                        // 将别名部分改为 ?占位符
+                        int dex = start;
+                        while (dex < end) {
+                            char ch = dex == start ? '?' : ' ';
+                            chars[dex] = ch;
+                            dex++;
+                        }
+                        map.put(++size, new String(alias));
                     }
                     // 重试start标记位置
                     start = 0;
@@ -141,7 +210,14 @@ class QueryMethodProcessor {
                 }
                 if (i == len - 1) end = len;
                 char[] alias = Arrays.copyOfRange(chars, start + 1, end);
-                map.put(new String(alias), ++size);
+                // 将别名部分改为 ?占位符
+                int dex = start;
+                while (dex < end) {
+                    char ch = dex == start ? '?' : ' ';
+                    chars[dex] = ch;
+                    dex++;
+                }
+                map.put(++size, new String(alias));
                 // 重试start标记位置
                 start = 0;
                 continue;
@@ -172,6 +248,7 @@ class QueryMethodProcessor {
                 }
             }
         }
+        model.setSql(new String(chars));
         model.setAliasMap(map);
         model.setSize(size);
         return model;
