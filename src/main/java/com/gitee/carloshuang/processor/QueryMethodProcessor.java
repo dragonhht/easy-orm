@@ -9,6 +9,7 @@ import com.gitee.carloshuang.model.ResultFieldMessage;
 import com.gitee.carloshuang.model.SqlParamModel;
 import com.gitee.carloshuang.storage.ConnectionHolder;
 import com.gitee.carloshuang.storage.QueryResultHolder;
+import com.gitee.carloshuang.utils.SqlUtils;
 import com.squareup.javapoet.MethodSpec;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.CollectionUtils;
@@ -59,7 +60,7 @@ class QueryMethodProcessor {
         Query anno = method.getDeclaredAnnotation(Query.class);
         String sql = anno.value();
         // 解析SQL
-        SqlParamModel sqlForParam = parserSqlParam(sql);
+        SqlParamModel sqlForParam = SqlUtils.parserSqlParam(sql);
         sql = sqlForParam.getSql();
         // 解析方法参数
         List<Param> sqlParam = parserParams(method);
@@ -147,111 +148,6 @@ class QueryMethodProcessor {
             params.add(param);
         }
         return params;
-    }
-
-    /**
-     * 解析sql语句中需要传递的参数
-     * @param sql sql语句
-     * @return
-     */
-    private SqlParamModel parserSqlParam(String sql) {
-        // TODO 需整理优化代码
-        SqlParamModel model = new SqlParamModel();
-        // 是否在字符串常量中
-        boolean isInStr = false;
-        int size = 0;
-        Map<Integer, String> map = new HashMap<>();
-        int start = 0, end = 0;
-        // 是否是使用?占位符
-        char[] chars = sql.toCharArray();
-        int len = chars.length;
-        for (int i = 0; i < len; i++) {
-            if (start > 0) end++;
-            if (chars[i] == '\'') {
-                isInStr = !isInStr;
-                continue;
-            }
-            // 查询到别名使用的占位符
-            if (!isInStr && chars[i] == ':') {
-                start = i;
-                end = start;
-                continue;
-            }
-            // 发现占位符后，查找到空格或到最后一个字符
-            if (!isInStr && start > 0 && (end > start + 1)  && (chars[i] == ' ' || i == len - 1)) {
-                // 记录的范围内，最后一个是否为右括号, 左侧是否有左括号
-                if (chars[end - 1] == ')') {
-                    int index = start - 1;
-                    while (chars[index] == ' ') index--;
-                    if (chars[index] == '(') {
-                        char[] alias = Arrays.copyOfRange(chars, start + 1, end - 1);
-                        // 将别名部分改为 ?占位符
-                        int dex = start;
-                        while (dex < end - 1) {
-                            char ch = dex == start ? '?' : ' ';
-                            chars[dex] = ch;
-                            dex++;
-                        }
-                        map.put(++size, new String(alias));
-                    } else {
-                        char[] alias = Arrays.copyOfRange(chars, start + 1, end);
-                        // 将别名部分改为 ?占位符
-                        int dex = start;
-                        while (dex < end) {
-                            char ch = dex == start ? '?' : ' ';
-                            chars[dex] = ch;
-                            dex++;
-                        }
-                        map.put(++size, new String(alias));
-                    }
-                    // 重试start标记位置
-                    start = 0;
-                    continue;
-                }
-                if (i == len - 1) end = len;
-                char[] alias = Arrays.copyOfRange(chars, start + 1, end);
-                // 将别名部分改为 ?占位符
-                int dex = start;
-                while (dex < end) {
-                    char ch = dex == start ? '?' : ' ';
-                    chars[dex] = ch;
-                    dex++;
-                }
-                map.put(++size, new String(alias));
-                // 重试start标记位置
-                start = 0;
-                continue;
-            }
-            // 出现?
-            if (!isInStr && chars[i] == '?') {
-                if (i == len - 1) {
-                    int index = i - 1;
-                    // 查看左侧是否有=
-                    while (chars[index] == ' ') index--;
-                    if (chars[index] == '=') size++;
-                    continue;
-                }
-                // 是否被()包裹
-                int startIndex = i - 1, endIndex = i + 1;
-                while (endIndex < len && chars[endIndex] == ' ') endIndex++;
-                if (endIndex >= len && (chars[startIndex - 1] == ' ' || chars[startIndex - 1] == '='))  size++;
-                if (endIndex < len && chars[endIndex] == ')') {
-                    // 查看左侧是否有(
-                    while (chars[startIndex] == ' ') startIndex--;
-                    if (chars[startIndex] == '(') size++;
-                    continue;
-                }
-                if (endIndex < len && chars[endIndex] != ')' && chars[i + 1] == ' ') {
-                    // 查看左侧是否有=
-                    while (chars[startIndex] == ' ') startIndex--;
-                    if (chars[startIndex] == '=') size++;
-                }
-            }
-        }
-        model.setSql(new String(chars));
-        model.setAliasMap(map);
-        model.setSize(size);
-        return model;
     }
 
     /**

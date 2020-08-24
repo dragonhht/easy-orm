@@ -3,11 +3,7 @@ package com.gitee.carloshuang.processor;
 import com.gitee.carloshuang.annotation.*;
 import com.gitee.carloshuang.handler.MapperClassLoader;
 import com.gitee.carloshuang.handler.MapperProxyInvocationHandler;
-import com.gitee.carloshuang.model.QueryResultType;
-import com.gitee.carloshuang.model.ResultFieldMessage;
-import com.gitee.carloshuang.storage.ConnectionHolder;
 import com.gitee.carloshuang.storage.MapperInstanceStorage;
-import com.gitee.carloshuang.storage.QueryResultHolder;
 import com.gitee.carloshuang.template.MapperTemplate;
 import com.gitee.carloshuang.utils.FileUtils;
 import com.squareup.javapoet.ClassName;
@@ -16,22 +12,17 @@ import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeSpec;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.reflections.Reflections;
 
 import javax.lang.model.element.Modifier;
 import javax.tools.JavaCompiler;
 import javax.tools.ToolProvider;
-import java.beans.IntrospectionException;
-import java.beans.PropertyDescriptor;
 import java.io.File;
-import java.lang.reflect.*;
+import java.lang.reflect.Method;
 import java.net.URL;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 import static com.gitee.carloshuang.constant.ParserConstant.JAVA_FILE_PATH;
 
@@ -98,7 +89,7 @@ public class MapperProcessor {
             if (method.isAnnotationPresent(Query.class)) {
                 methodSpec = QueryMethodProcessor.getProcessor().parserQueryMethod(namespace, method);
             } else if (method.isAnnotationPresent(Insert.class)) {
-                methodSpec = parserInsertMethod(method);
+                methodSpec = InsertMethodProcessor.parserInsertMethod(method);
             } else if (method.isAnnotationPresent(Update.class)) {
                 methodSpec = parserUpdatetMethod(method);
             } else if (method.isAnnotationPresent(Delete.class)) {
@@ -157,15 +148,6 @@ public class MapperProcessor {
                 .addSuperinterface(superinterface)
                 // 继承模板类
                 .superclass(mapperTemplate);
-    }
-
-    /**
-     * 解析 @Insert 注解标记的方法
-     * @param method
-     * @return
-     */
-    private MethodSpec parserInsertMethod(Method method) {
-        return null;
     }
 
     /**
