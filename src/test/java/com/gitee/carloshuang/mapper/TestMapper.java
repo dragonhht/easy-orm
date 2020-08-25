@@ -17,11 +17,11 @@ public interface TestMapper {
     @Query("select * from user")
     List<User> getUser();
 
-    @Query("select u.id id, u.name name from user u where u.id = ${id}")
+    @Query("select u.id id, u.name name from user u where u.id = ${user.id} and u.name = ${user.name}")
     @Results(
             {@Result(column = "id", property = "id")}
     )
-    User getUserById(@Param("id") Integer id);
+    User getUserById(@Param("user") User user);
 
 //    @Insert("insert into user value(?, ?, ?)")
 //    Integer save(User user);

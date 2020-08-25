@@ -156,7 +156,10 @@ public class BaseTest {
         TestMapper mapper = MapperInstanceStorage.getInstance().get(TestMapper.class);
         List<User> user = mapper.getUser();
         System.out.println(user);
-        User u = mapper.getUserById(1);
+        User user1 = new User();
+        user1.setId(1);
+        user1.setName("huang");
+        User u = mapper.getUserById(user1);
         System.out.println("getById: " + u);
     }
 
