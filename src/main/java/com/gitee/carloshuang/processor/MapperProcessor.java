@@ -91,9 +91,9 @@ public class MapperProcessor {
             } else if (method.isAnnotationPresent(Insert.class)) {
                 methodSpec = InsertMethodProcessor.parserInsertMethod(method);
             } else if (method.isAnnotationPresent(Update.class)) {
-                methodSpec = parserUpdatetMethod(method);
+                methodSpec = UpdateMethodProcessor.parserUpdatetMethod(method);
             } else if (method.isAnnotationPresent(Delete.class)) {
-                methodSpec = parserDeleteMethod(method);
+                methodSpec = DeleteMethodProcessor.parserDeleteMethod(method);
             } else {
                 methodSpec = parserOtherMethod(method);
             }
@@ -148,24 +148,6 @@ public class MapperProcessor {
                 .addSuperinterface(superinterface)
                 // 继承模板类
                 .superclass(mapperTemplate);
-    }
-
-    /**
-     * 解析 @Update 注解标记的方法
-     * @param method
-     * @return
-     */
-    private MethodSpec parserUpdatetMethod(Method method) {
-        return null;
-    }
-
-    /**
-     * 解析 @Delete 注解标记的方法
-     * @param method
-     * @return
-     */
-    private MethodSpec parserDeleteMethod(Method method) {
-        return null;
     }
 
     /**

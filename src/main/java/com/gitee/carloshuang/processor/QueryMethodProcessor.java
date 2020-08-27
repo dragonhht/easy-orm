@@ -59,7 +59,7 @@ class QueryMethodProcessor {
         SqlParamModel sqlForParam = SqlUtils.parserSqlParam(sql);
         sql = sqlForParam.getSql();
         // 解析方法参数
-        MethodSqlParam methodSqlParam = parserParams(method, sqlForParam.getAliasMap());
+        MethodSqlParam methodSqlParam = SqlUtils.parserParams(method, sqlForParam.getAliasMap());
         // 创建实现类方法源代码
         Parameter[] params = method.getParameters();
         MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder(method.getName())
@@ -69,7 +69,6 @@ class QueryMethodProcessor {
         for (Parameter param : params) {
             methodBuilder.addParameter(param.getType(), param.getName());
         }
-        // TODO 完善查询代码逻辑
         // 主要代码逻辑
         methodBuilder.addCode("$T connection = null;\n" +
                         "$T statement = null;\n" +
@@ -120,94 +119,6 @@ class QueryMethodProcessor {
                 Exception.class, RuntimeException.class, SQLException.class);
         methodBuilder.addStatement("return result");
         return methodBuilder.build();
-    }
-
-    /**
-     * 解析方法参数
-     * @param method
-     * @param aliasMap Sql语句中的别名占位符
-     * @return
-     */
-    private MethodSqlParam parserParams(Method method, Map<Integer, String> aliasMap) {
-        MethodSqlParam methodSqlParam = new MethodSqlParam();
-        Parameter[] parameters = method.getParameters();
-        List<Param> params = new ArrayList<>(parameters.length);
-        for (Parameter parameter : parameters) {
-            Param param = new Param();
-            // 是否为数组，集合
-            Class<?> clazz = parameter.getType();
-            param.setType(clazz);
-            if (clazz.isArray() || Collection.class.isAssignableFrom(clazz)) {
-                param.setPlural(true);
-            }
-            param.setName(parameter.getName());
-            com.gitee.carloshuang.annotation.Param anno = parameter.getAnnotation(com.gitee.carloshuang.annotation.Param.class);
-            if (anno != null) {
-                param.setAlias(anno.value());
-            }
-            params.add(param);
-        }
-        Map<String, Param> paramMap = params.stream()
-                .filter(v -> StringUtils.isNotEmpty(v.getAlias()))
-                .collect(Collectors.toMap(Param::getAlias, v -> v, (v1, v2) -> v2));
-        Map<String, Param> map =  parserParamToSqlParam(aliasMap, paramMap);
-        methodSqlParam.setAliasMap(map);
-        methodSqlParam.setParams(params);
-        return methodSqlParam;
-    }
-
-    /**
-     * 将方法别名参数解析成sql可用的参数
-     * @param aliasMap
-     * @param paramMap
-     * @return
-     */
-    @SneakyThrows
-    private Map<String, Param> parserParamToSqlParam(Map<Integer, String> aliasMap, Map<String, Param> paramMap) {
-        Map<String, Param> map = new HashMap<>();
-        for (String value : aliasMap.values()) {
-            Param param = new Param();
-            // 是否为多级
-            String[] alias = value.split("\\.");
-            // 长度为一时，则表示为参数对象本身
-            if (alias.length == 1) {
-                Param par = paramMap.get(value);
-                if (par == null) throw new RuntimeException("参数 ${" + value + "} 无对应的参数");
-                param.setAlias(par.getAlias());
-                param.setName(par.getName());
-                param.setPlural(par.isPlural());
-                param.setWay(par.getName());
-                param.setType(par.getType());
-                map.put(value, param);
-                continue;
-            }
-            // 当存在多级时
-            // 第一级为参数名
-            String parName = alias[0];
-            Param par = paramMap.get(parName);
-            if (par == null) throw new RuntimeException("参数 ${" + value + "} 无对应的参数");
-            Class<?> type = par.getType();
-            StringBuilder sb = new StringBuilder(par.getName()).append(".");
-            for (int i = 1; i < alias.length; i++) {
-                PropertyDescriptor descriptor = new PropertyDescriptor(alias[i], type);
-                Method readMethod = descriptor.getReadMethod();
-                sb.append(readMethod.getName()).append("()").append(".");
-                type = descriptor.getPropertyType();
-            }
-            int len = sb.length();
-            char[] chars = new char[len - 1];
-            sb.getChars(0, len - 1, chars, 0);
-            String way = new String(chars);
-            param.setWay(way);
-            param.setType(type);
-            param.setName(par.getName());
-            param.setAlias(value);
-            if (type.isArray() || Collection.class.isAssignableFrom(type)) {
-                param.setPlural(true);
-            }
-            map.put(value, param);
-        }
-        return map;
     }
 
     /**

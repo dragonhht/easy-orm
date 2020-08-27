@@ -1,6 +1,7 @@
 package com.gitee.carloshuang.processor;
 
-import com.gitee.carloshuang.annotation.Insert;
+import com.gitee.carloshuang.annotation.Delete;
+import com.gitee.carloshuang.annotation.Update;
 import com.gitee.carloshuang.model.MethodSqlParam;
 import com.gitee.carloshuang.model.Param;
 import com.gitee.carloshuang.model.SqlParamModel;
@@ -18,21 +19,21 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 新增方法处理器.
+ * 删除方法处理器.
  *
  * @author: Carlos Huang
  * @Date: 2020-8-24
  */
-class InsertMethodProcessor {
+class DeleteMethodProcessor {
 
     /**
-     * 解析 @Insert 注解标记的方法
+     * 解析 @Delete 注解标记的方法
      * @param method
      * @return
      */
-    public static MethodSpec parserInsertMethod(Method method) {
+    public static MethodSpec parserDeleteMethod(Method method) {
         // 解析SQL
-        Insert anno = method.getDeclaredAnnotation(Insert.class);
+        Delete anno = method.getDeclaredAnnotation(Delete.class);
         String sql = anno.value();
         // 解析SQL参数
         SqlParamModel sqlForParam = SqlUtils.parserSqlParam(sql);

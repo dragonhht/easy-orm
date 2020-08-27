@@ -161,6 +161,46 @@ public class BaseTest {
         user1.setName("huang");
         User u = mapper.getUserById(user1);
         System.out.println("getById: " + u);
+        // 新增
+        User user2 = new User();
+        user2.setName("test_user" + System.currentTimeMillis());
+        user2.setPassword(System.currentTimeMillis() + "");
+        Object result = mapper.save(user2);
+        System.out.println("保存结果: " + result);
+        // 删除
+        Object dr = mapper.delete("test_user1598536123108");
+        System.out.println("删除结果: " + dr);
+        // 更新
+        user2.setPassword("" + System.currentTimeMillis() + "_pwd");
+        Object ur = mapper.update(user2);
+        System.out.println("更新结果: " + ur);
+    }
+
+    @Test
+    public void testInsert() {
+        String sql = "insert into user(name, password) value(?, ?)";
+        Connection connection = null;
+        PreparedStatement statement = null;
+        Object result = null;
+        try {
+            connection = ConnectionHolder.getInstance().getConnection();
+            statement = connection.prepareStatement(sql);
+            statement.setObject(1, "test_user");
+            statement.setObject(2, "1234567890");
+            int ok = statement.executeUpdate();
+            System.out.println(ok);
+        }catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            if (statement != null) {
+                try {
+                    statement.close();
+                } catch (SQLException throwables) {
+                    throw new RuntimeException(throwables);
+                }
+            }
+            ConnectionHolder.getInstance().closeConnection();
+        }
     }
 
     @Test

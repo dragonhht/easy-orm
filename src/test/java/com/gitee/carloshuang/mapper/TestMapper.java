@@ -23,7 +23,13 @@ public interface TestMapper {
     )
     User getUserById(@Param("user") User user);
 
-//    @Insert("insert into user value(?, ?, ?)")
-//    Integer save(User user);
+    @Insert("insert into user(name, password) value(${user.name}, ${user.password})")
+    Integer save(@Param("user") User user);
+
+    @Delete("delete from user where name = ?")
+    Integer delete(String name);
+
+    @Update("update user set password = ${user.password} where name = ${user.name}")
+    Integer update(@Param("user") User user);
 
 }
