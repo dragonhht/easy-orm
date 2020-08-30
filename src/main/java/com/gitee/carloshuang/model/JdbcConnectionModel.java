@@ -18,6 +18,9 @@ import static com.gitee.carloshuang.constant.PlatformType.*;
 @Data
 public class JdbcConnectionModel {
 
+    /** 数据信息标识. */
+    private String id;
+
     private String host;
     private int port;
     private String dataBase;

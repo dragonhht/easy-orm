@@ -1,6 +1,7 @@
 package com.gitee.carloshuang.storage;
 
 import com.gitee.carloshuang.constant.PlatformType;
+import com.gitee.carloshuang.exception.CanNotEmptyJdbcFlageException;
 import com.gitee.carloshuang.model.JdbcConnectionModel;
 import com.gitee.carloshuang.utils.DataSourceUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -22,7 +23,7 @@ public class DataSourceHolder {
     private String nowDataSource;
 
     private DataSourceHolder() {
-        init();
+
     }
 
     public static DataSourceHolder getInstance() {
@@ -36,24 +37,30 @@ public class DataSourceHolder {
         return HOLDER;
     }
 
-    public void init() {
-        // TODO 暂时测试使用
-        JdbcConnectionModel jdbc = new JdbcConnectionModel();
-        jdbc.setHost("localhost");
-        jdbc.setPort(3306);
-        jdbc.setUserName("root");
-        jdbc.setPassword("1234");
-        jdbc.setDataBase("test");
-        jdbc.setDriverClassName("com.mysql.cj.jdbc.Driver");
-        jdbc.setPlatform(PlatformType.MYSQL);
-
-        String sql = "select * from user";
+    /**
+     * 添加新数据源
+     * @param jdbc
+     */
+    public DataSource add(JdbcConnectionModel jdbc) {
+        if (StringUtils.isEmpty(jdbc.getId())) throw new CanNotEmptyJdbcFlageException();
         DataSource dataSource = DataSourceUtils.createDataSource(jdbc);
-
-        nowDataSource = "test_1";
-        dataSourceMap.put(nowDataSource, dataSource);
+        String id = jdbc.getId();
+        dataSourceMap.put(id, dataSource);
+        return dataSource;
     }
 
+    /**
+     * 设置当前数据源
+     * @param key
+     */
+    public void setNowDataSource(String key) {
+        nowDataSource = key;
+    }
+
+    /**
+     * 获取当前数据源
+     * @return
+     */
     public DataSource getDataSource() {
         if (StringUtils.isEmpty(nowDataSource)) throw new RuntimeException("数据源未初始化");
         return dataSourceMap.get(nowDataSource);

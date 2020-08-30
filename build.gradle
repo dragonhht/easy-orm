@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id 'maven-publish'
 }
 
 group 'com.gitee.carloshuang'
@@ -29,9 +30,44 @@ dependencies {
 
     testCompile group: 'junit', name: 'junit', version: '4.12'
 
+    compile group: 'org.springframework.boot', name: 'spring-boot-starter', version: '2.3.0.RELEASE'
+    compile group: 'org.springframework.boot', name: 'spring-boot-configuration-processor', version: '2.3.0.RELEASE'
+
     compile 'mysql:mysql-connector-java:8.0.15'
 }
 
 tasks.withType(JavaCompile) {
     options.encoding = "UTF-8"
+}
+
+// 源码包
+task sourceJar(type: Jar) {
+    from sourceSets.main.allJava
+    classifier "sources"
+}
+
+publishing {
+    // 配置发布的项目信息
+    publications{
+        library(MavenPublication){
+            // war包使用components.web，jar包使用components.java
+            from components.java
+            //artifact sourceJar
+        }
+    }
+    // 配置发布的地址
+    repositories{
+//        maven{
+//            // 私服地址
+//            url = 'https://xxxx'
+//            // 验证信息
+//            credentials{
+//                // 私服的用户与密码
+//                username ''
+//                password ''
+//            }
+//        }
+        // 发布到本地
+        mavenLocal()
+    }
 }
