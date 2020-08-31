@@ -6,6 +6,7 @@ import com.gitee.carloshuang.annotation.Results;
 import com.gitee.carloshuang.model.*;
 import com.gitee.carloshuang.storage.ConnectionHolder;
 import com.gitee.carloshuang.storage.QueryResultHolder;
+import com.gitee.carloshuang.storage.SqlContainer;
 import com.gitee.carloshuang.utils.SqlUtils;
 import com.squareup.javapoet.MethodSpec;
 import lombok.SneakyThrows;
@@ -55,11 +56,15 @@ class QueryMethodProcessor {
         // 解析 Query
         Query anno = method.getDeclaredAnnotation(Query.class);
         String sql = anno.value();
+        // 存放sql语句
+        SqlContainer.getInstance().put(methodId, sql);
         // 解析SQL
         SqlParamModel sqlForParam = SqlUtils.parserSqlParam(sql);
         sql = sqlForParam.getSql();
         // 解析方法参数
         MethodSqlParam methodSqlParam = SqlUtils.parserParams(method, sqlForParam.getAliasMap());
+        // 解析拼接参数
+        Map<String, String> splicingParamMap = SqlUtils.parserSplicingParams(sqlForParam.getSplicingAlias(), methodSqlParam.getParams());
         // 创建实现类方法源代码
         Parameter[] params = method.getParameters();
         MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder(method.getName())
@@ -76,7 +81,15 @@ class QueryMethodProcessor {
                         "try {\n",
                 Connection.class, PreparedStatement.class, method.getReturnType());
         methodBuilder.addStatement("connection = $T.getInstance().getConnection()", ConnectionHolder.class);
-        methodBuilder.addStatement("statement = connection.prepareStatement($S)", sql);
+        methodBuilder.addStatement("String sql = $S", sql);
+
+        // 替换拼接参数
+        for (Map.Entry<String, String> entry : splicingParamMap.entrySet()) {
+            // TODO 需处理含有空格的情况
+            methodBuilder.addStatement("sql = sql.replace($S, $N)",
+                    entry.getKey(), "String.valueOf(" + entry.getValue() + ")");
+        }
+        methodBuilder.addStatement("statement = connection.prepareStatement(sql)");
         // sql传参
         int paramSize = sqlForParam.getSize();
         // 判断使用别名的参数是否为空

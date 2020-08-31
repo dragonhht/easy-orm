@@ -32,12 +32,14 @@ public class SqlUtils {
         boolean isInStr = false;
         int size = 0;
         Map<Integer, String> map = new HashMap<>();
-        int start = 0, end = 0;
+        List<String> splicingAlias = new ArrayList<>();
+        int start = 0, end = 0, start_1 = 0, end_1 = 0;
         // 是否是使用${占位符
         char[] chars = sql.toCharArray();
         int len = chars.length;
         for (int i = 0; i < len; i++) {
             if (start > 0) end++;
+            if (start_1 > 0) end_1++;
             if (chars[i] == '\'') {
                 isInStr = !isInStr;
                 continue;
@@ -62,6 +64,7 @@ public class SqlUtils {
                         char[] alias = Arrays.copyOfRange(chars, start + 2, end);
                         changeAliasToMark(chars, start, end);
                         map.put(++size, new String(alias));
+                        start = 0;
                         continue;
                     }
                 }
@@ -73,11 +76,34 @@ public class SqlUtils {
                     continue;
                 }
                 if (chars[i - 1] == '=' || chars[i - 1] == ' ' || chars[i - 1] == ',' || chars[i - 1] == '(') size++;
+                continue;
+            }
+            if (!isInStr && chars[i] == '#') {
+                // 判断下一个字符是否为 {
+                if (i < len - 1) {
+                    if (chars[i + 1] == '{') {
+                        start_1 = i;
+                        end_1 = start_1;
+                        continue;
+                    }
+                }
+            }
+            if (!isInStr && start_1 > 0 && (end_1 > start_1 + 1)) {
+                if (i == len - 1 && chars[i] != '}') continue;
+                if (chars[i] == '}') {
+                    // 是否为最后一个字符
+                    if (i + 1 >= len || chars[i + 1] == ' ' || chars[i + 1] == ')' || chars[i + 1] == ',') {
+                        char[] alias = Arrays.copyOfRange(chars, start_1, end_1 + 1);
+                        splicingAlias.add(new String(alias));
+                        start = 0;
+                    }
+                }
             }
         }
         model.setSql(new String(chars));
         model.setAliasMap(map);
         model.setSize(size);
+        model.setSplicingAlias(splicingAlias);
         return model;
     }
 
@@ -180,6 +206,52 @@ public class SqlUtils {
                 param.setPlural(true);
             }
             map.put(value, param);
+        }
+        return map;
+    }
+
+    /**
+     * 解析拼接参数获取方式
+     * @param splicingAlias
+     * @param methodParams
+     * @return
+     */
+    @SneakyThrows
+    public static Map<String, String> parserSplicingParams(List<String> splicingAlias, List<Param> methodParams) {
+        Map<String, Param> paramMap = methodParams.stream()
+                .filter(v -> StringUtils.isNotEmpty(v.getAlias()))
+                .collect(Collectors.toMap(Param::getAlias, v -> v, (v1, v2) -> v2));
+        Map<String, String> map = new HashMap<>();
+        for (String value : splicingAlias) {
+            String valueTemp = value;
+            value = value.replace("#{", "").replace("}", "").trim();
+            // 是否为多级
+            String[] alias = value.split("\\.");
+            // 长度为一时，则表示为参数对象本身
+            if (alias.length == 1) {
+                Param par = paramMap.get(value);
+                if (par == null) throw new RuntimeException("参数 #{" + value + "} 无对应的参数");
+                map.put(valueTemp, par.getName());
+                continue;
+            }
+            // 当存在多级时
+            // 第一级为参数名
+            String parName = alias[0];
+            Param par = paramMap.get(parName);
+            if (par == null) throw new RuntimeException("参数 #{" + value + "} 无对应的参数");
+            Class<?> type = par.getType();
+            StringBuilder sb = new StringBuilder(par.getName()).append(".");
+            for (int i = 1; i < alias.length; i++) {
+                PropertyDescriptor descriptor = new PropertyDescriptor(alias[i], type);
+                Method readMethod = descriptor.getReadMethod();
+                sb.append(readMethod.getName()).append("()").append(".");
+                type = descriptor.getPropertyType();
+            }
+            int len = sb.length();
+            char[] chars = new char[len - 1];
+            sb.getChars(0, len - 1, chars, 0);
+            String way = new String(chars);
+            map.put(valueTemp, way);
         }
         return map;
     }

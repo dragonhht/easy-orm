@@ -1,14 +1,16 @@
 package com.gitee.carloshuang;
 
 import com.esotericsoftware.reflectasm.MethodAccess;
+import com.gitee.carloshuang.constant.PlatformType;
 import com.gitee.carloshuang.mapper.TestMapper;
-import com.gitee.carloshuang.model.QueryResultType;
-import com.gitee.carloshuang.model.ResultFieldMessage;
-import com.gitee.carloshuang.model.User;
+import com.gitee.carloshuang.model.*;
 import com.gitee.carloshuang.processor.MapperProcessor;
 import com.gitee.carloshuang.storage.ConnectionHolder;
+import com.gitee.carloshuang.storage.DataSourceHolder;
 import com.gitee.carloshuang.storage.MapperInstanceStorage;
 import com.gitee.carloshuang.storage.QueryResultHolder;
+import com.gitee.carloshuang.utils.SqlUtils;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.beans.IntrospectionException;
@@ -28,6 +30,21 @@ import java.util.concurrent.TimeUnit;
  * @Date: 2020-8-17
  */
 public class BaseTest {
+
+    @Before
+    public void init() {
+        JdbcConnectionModel jdbc = new JdbcConnectionModel();
+        jdbc.setId("test-1");
+        jdbc.setHost("localhost");
+        jdbc.setPort(3306);
+        jdbc.setUserName("root");
+        jdbc.setPassword("1234");
+        jdbc.setDataBase("test");
+        jdbc.setDriverClassName("com.mysql.cj.jdbc.Driver");
+        jdbc.setPlatform(PlatformType.MYSQL);
+        DataSourceHolder.getInstance().add(jdbc);
+        DataSourceHolder.getInstance().setNowDataSource(jdbc.getId());
+    }
 
     @Test
     public void testGetAnno() {
@@ -174,6 +191,9 @@ public class BaseTest {
         user2.setPassword("" + System.currentTimeMillis() + "_pwd");
         Object ur = mapper.update(user2);
         System.out.println("更新结果: " + ur);
+
+        List<User> userList = mapper.getUserForSplicing(user1);
+        System.out.println("getUserForSplicing: " + userList);
     }
 
     @Test
@@ -232,6 +252,13 @@ public class BaseTest {
         }
         int[] us = new int[0];
         System.out.println(us.getClass().getComponentType());
+    }
+
+    @Test
+    public void testSql() {
+        String sql = "select * from user name = #{user.name} and name =#{user.name} and id = ${user.id} and id =${user.id}";
+        SqlParamModel sqlParamModel = SqlUtils.parserSqlParam(sql);
+        System.out.println(sqlParamModel);
     }
 
 }

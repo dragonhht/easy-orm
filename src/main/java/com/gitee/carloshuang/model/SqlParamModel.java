@@ -2,6 +2,7 @@ package com.gitee.carloshuang.model;
 
 import lombok.Data;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -18,4 +19,6 @@ public class SqlParamModel {
     private Map<Integer, String> aliasMap;
     /** 最终sql. */
     private String sql;
+    /** 使用拼接的别名. */
+    List<String> SplicingAlias;
 }

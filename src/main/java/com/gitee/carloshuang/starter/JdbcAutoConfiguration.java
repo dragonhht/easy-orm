@@ -3,6 +3,7 @@ package com.gitee.carloshuang.starter;
 import com.gitee.carloshuang.model.JdbcConnectionModel;
 import com.gitee.carloshuang.processor.MapperProcessor;
 import com.gitee.carloshuang.storage.DataSourceHolder;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,11 +27,26 @@ public class JdbcAutoConfiguration {
      */
     @Bean
     public DataSource initDataSource(JdbcSettingProperties properties) {
+        // 允许不填写配置，则表示用户后面自动创建
+        if (isNull(properties)) {
+            MapperProcessor.init();
+            return null;
+        }
         JdbcConnectionModel jdbc = convertPropertiesToModel(properties);
         DataSource dataSource = DataSourceHolder.getInstance().add(jdbc);
         DataSourceHolder.getInstance().setNowDataSource(jdbc.getId());
         MapperProcessor.init();
         return dataSource;
+    }
+
+    /**
+     * 判断是否配置数据源
+     * @param properties
+     * @return
+     */
+    private boolean isNull(JdbcSettingProperties properties) {
+        return StringUtils.isEmpty(properties.getDriverClassName()) && StringUtils.isEmpty(properties.getUrl())
+                && StringUtils.isEmpty(properties.getUserName()) && StringUtils.isEmpty(properties.getPassword());
     }
 
     /**

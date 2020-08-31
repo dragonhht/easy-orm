@@ -17,6 +17,9 @@ public interface TestMapper {
     @Query("select * from user")
     List<User> getUser();
 
+    @Query("select * from user where id = #{user.id}")
+    List<User> getUserForSplicing(@Param("user") User user);
+
     @Query("select u.id id, u.name name from user u where u.id = ${user.id} and u.name = ${user.name}")
     @Results(
             {@Result(column = "id", property = "id")}

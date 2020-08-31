@@ -130,7 +130,7 @@ public class MapperProcessor {
             MapperInstanceStorage.getInstance().put(entry.getValue(), result);
         }
         // 加载完成后删除临时目录
-        FileUtils.delDir(new File(TEMP_CLASS_PATH));
+//        FileUtils.delDir(new File(TEMP_CLASS_PATH));
     }
 
     /**
