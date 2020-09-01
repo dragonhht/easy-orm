@@ -39,6 +39,8 @@ class InsertMethodProcessor {
         sql = sqlForParam.getSql();
         // 解析方法参数
         MethodSqlParam methodSqlParam = SqlUtils.parserParams(method, sqlForParam.getAliasMap());
+        // 解析拼接参数
+        Map<String, String> splicingParamMap = SqlUtils.parserSplicingParams(sqlForParam.getSplicingAlias(), methodSqlParam.getParams());
         // 创建实现类方法源代码
         Parameter[] params = method.getParameters();
         MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder(method.getName())
@@ -55,7 +57,14 @@ class InsertMethodProcessor {
                         "try {\n",
                 Connection.class, PreparedStatement.class);
         methodBuilder.addStatement("connection = $T.getInstance().getConnection()", ConnectionHolder.class);
-        methodBuilder.addStatement("statement = connection.prepareStatement($S)", sql);
+
+        methodBuilder.addStatement("String sql = $S", sql);
+        // 替换拼接参数
+        for (Map.Entry<String, String> entry : splicingParamMap.entrySet()) {
+            methodBuilder.addStatement("sql = sql.replace($S, $N)",
+                    entry.getKey(), "String.valueOf(" + entry.getValue() + ")");
+        }
+        methodBuilder.addStatement("statement = connection.prepareStatement(sql)");
         // sql传参
         int paramSize = sqlForParam.getSize();
         // 判断使用别名的参数是否为空
