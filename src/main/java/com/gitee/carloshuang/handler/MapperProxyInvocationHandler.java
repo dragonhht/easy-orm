@@ -1,8 +1,13 @@
 package com.gitee.carloshuang.handler;
 
+import com.gitee.carloshuang.annotation.MethodId;
+import com.gitee.carloshuang.model.Invocation;
+import com.gitee.carloshuang.storage.ConnectionHolder;
+
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.sql.Connection;
 
 /**
  * Mapper标记接口动态代理类.
@@ -31,5 +36,18 @@ public class MapperProxyInvocationHandler<T> implements InvocationHandler {
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         return method.invoke(target, args);
+    }
+
+    /**
+     * 创建拦截器使用的参数
+     * @param proxy 目标实例
+     * @param method 目标方法
+     * @param args 参数
+     * @return
+     */
+    private Invocation createInvocation(Object proxy, Method method, Object[] args) {
+        Connection connection = ConnectionHolder.getInstance().getConnection();
+        MethodId methodId = method.getDeclaredAnnotation(MethodId.class);
+        return null;
     }
 }

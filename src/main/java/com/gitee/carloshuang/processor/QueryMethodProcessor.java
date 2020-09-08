@@ -7,6 +7,7 @@ import com.gitee.carloshuang.model.*;
 import com.gitee.carloshuang.storage.ConnectionHolder;
 import com.gitee.carloshuang.storage.QueryResultHolder;
 import com.gitee.carloshuang.storage.SqlContainer;
+import com.gitee.carloshuang.utils.MethodIdAnnotationUtils;
 import com.gitee.carloshuang.utils.SqlUtils;
 import com.squareup.javapoet.MethodSpec;
 import lombok.SneakyThrows;
@@ -69,6 +70,7 @@ class QueryMethodProcessor {
         Parameter[] params = method.getParameters();
         MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder(method.getName())
                 .addAnnotation(Override.class)
+                .addAnnotation(MethodIdAnnotationUtils.getAnnotationSpec(methodId))
                 .addModifiers(Modifier.PUBLIC)
                 .returns(method.getReturnType());
         for (Parameter param : params) {

@@ -12,6 +12,8 @@ import java.sql.Connection;
 public class ConnectionHolder {
     private static ConnectionHolder HOLDER;
     private ThreadLocal<Connection> connectionThreadLocal = new ThreadLocal<>();
+    /** 是否关闭. */
+    private ThreadLocal<Boolean> canClose = new ThreadLocal<>();
 
     private ConnectionHolder() {
     }
@@ -28,6 +30,14 @@ public class ConnectionHolder {
     }
 
     /**
+     * 设置是否关闭连接
+     * @param canClose
+     */
+    public void setCanClose(boolean canClose) {
+        this.canClose.set(canClose);
+    }
+
+    /**
      * 获取数据库连接
      * @return
      */
@@ -37,6 +47,7 @@ public class ConnectionHolder {
         if (connection == null || connection.isClosed()) {
             connection = DataSourceHolder.getInstance().getDataSource().getConnection();
             connectionThreadLocal.set(connection);
+            canClose.set(true);
         }
         return connection;
     }
@@ -47,7 +58,7 @@ public class ConnectionHolder {
     @SneakyThrows
     public void closeConnection() {
         Connection connection = connectionThreadLocal.get();
-        if (connection != null && !connection.isClosed()) {
+        if (connection != null && !connection.isClosed() && canClose.get()) {
             connection.close();
         }
     }
