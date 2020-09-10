@@ -169,6 +169,7 @@ public class BaseTest {
 
     @Test
     public void te() {
+
         MapperProcessor.init();
         TestMapper mapper = MapperInstanceStorage.getInstance().get(TestMapper.class);
         List<User> user = mapper.getUser();

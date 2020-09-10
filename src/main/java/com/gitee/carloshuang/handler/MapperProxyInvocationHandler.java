@@ -3,6 +3,7 @@ package com.gitee.carloshuang.handler;
 import com.gitee.carloshuang.annotation.MethodId;
 import com.gitee.carloshuang.model.Invocation;
 import com.gitee.carloshuang.storage.ConnectionHolder;
+import com.gitee.carloshuang.storage.SqlContainer;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -35,7 +36,9 @@ public class MapperProxyInvocationHandler<T> implements InvocationHandler {
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-        return method.invoke(target, args);
+        Invocation invocation = createInvocation(proxy, method, args);
+        if (invocation == null) return method.invoke(target, args);
+        return com.gitee.carloshuang.handler.InvocationHandler.handler(invocation);
     }
 
     /**
@@ -48,6 +51,9 @@ public class MapperProxyInvocationHandler<T> implements InvocationHandler {
     private Invocation createInvocation(Object proxy, Method method, Object[] args) {
         Connection connection = ConnectionHolder.getInstance().getConnection();
         MethodId methodId = method.getDeclaredAnnotation(MethodId.class);
-        return null;
+        if (methodId == null) return null;
+        String id = methodId.id();
+        String sql = SqlContainer.getInstance().get(id);
+        return new Invocation(connection, sql, args, target, method);
     }
 }
