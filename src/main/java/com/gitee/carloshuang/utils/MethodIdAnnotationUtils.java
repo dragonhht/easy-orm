@@ -24,4 +24,19 @@ public class MethodIdAnnotationUtils {
                 .build();
     }
 
+    /**
+     * 拦截器 methodId
+     * @param method 全限定方法名
+     * @param args 参数类型
+     * @return methodId
+     */
+    public static String interceptorMethod(String method, Class<?>[] args) {
+        StringBuilder sb = new StringBuilder(method)
+                .append("_");
+        for (Class<?> arg : args) {
+            sb.append(arg.getName()).append("_");
+        }
+        return sb.toString();
+    }
+
 }

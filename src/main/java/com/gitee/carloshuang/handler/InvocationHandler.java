@@ -1,8 +1,7 @@
 package com.gitee.carloshuang.handler;
 
 import com.gitee.carloshuang.model.Invocation;
-
-import java.util.function.Function;
+import lombok.SneakyThrows;
 
 /**
  * 执行处理器.
@@ -17,8 +16,9 @@ public class InvocationHandler {
      * @param invocation
      * @return
      */
+    @SneakyThrows
     public static Object handler(Invocation invocation) {
-        return null;
+        return invocation.proceed();
     }
 
 }

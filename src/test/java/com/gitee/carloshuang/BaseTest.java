@@ -4,6 +4,7 @@ import com.esotericsoftware.reflectasm.MethodAccess;
 import com.gitee.carloshuang.constant.PlatformType;
 import com.gitee.carloshuang.mapper.TestMapper;
 import com.gitee.carloshuang.model.*;
+import com.gitee.carloshuang.processor.InterceptorProcessor;
 import com.gitee.carloshuang.processor.MapperProcessor;
 import com.gitee.carloshuang.storage.ConnectionHolder;
 import com.gitee.carloshuang.storage.DataSourceHolder;
@@ -169,7 +170,7 @@ public class BaseTest {
 
     @Test
     public void te() {
-
+        InterceptorProcessor.init();
         MapperProcessor.init();
         TestMapper mapper = MapperInstanceStorage.getInstance().get(TestMapper.class);
         List<User> user = mapper.getUser();
@@ -192,9 +193,6 @@ public class BaseTest {
         user2.setPassword("" + System.currentTimeMillis() + "_pwd");
         Object ur = mapper.update(user2);
         System.out.println("更新结果: " + ur);
-
-        List<User> userList = mapper.getUserForSplicing(user1);
-        System.out.println("getUserForSplicing: " + userList);
     }
 
     @Test
